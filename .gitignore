@@ -1,3 +1,12 @@
 bin/
 obj/
 .vimrc
+
+*~
+
+Debug/
+*.opensdf
+*.sdf
+*.sln
+*.suo
+synthesizer/

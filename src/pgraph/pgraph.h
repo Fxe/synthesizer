@@ -5,8 +5,9 @@
 
 namespace pgraph {
 class ProcessGraph {
-public:
-private:
+  public:
+
+  private:
 };
 } // namespace pgraph
 
