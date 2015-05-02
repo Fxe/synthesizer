@@ -1,0 +1,10 @@
+#ifndef SYNTHESIZER_PGRAPH_PGRAPH_UTILITIES_H_
+#define SYNTHESIZER_PGRAPH_PGRAPH_UTILITIES_H_
+
+namespace pgraph
+{
+
+
+} // namespace pgraph 
+
+#endif // SYNTHESIZER_PGRAPH_PGRAPH_UTILITIES
