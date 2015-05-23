@@ -10,21 +10,26 @@ using namespace std;
 
 pgraph::OperatingUnit::OperatingUnit()
 {
-
+  int id_ = 0;
 };
 
-pgraph::OperatingUnit::OperatingUnit(int* a, int* b)
+pgraph::OperatingUnit::OperatingUnit(int id, int* a, int* b)
 {
+  id_ = id;
   a_ = new set < int > ;
   b_ = new set < int > ;
   std::cout << a << " " << b << std::endl;
 };
 
-pgraph::OperatingUnit::OperatingUnit(set<int>* a, set<int>* b) {
+pgraph::OperatingUnit::OperatingUnit(int id, set<int>* a, set<int>* b)
+{
+  id_ = id;
   a_ = a;
   b_ = b;
   cout << a->size() << " - " << b->size() << endl;
 };
+
+int pgraph::OperatingUnit::getId() { return id_; };
 
 int pgraph::OperatingUnit::size()
 { 
