@@ -12,11 +12,12 @@ void foo()
 }
 
 
-int main(int argc, char** argv)
+int mains(int argc, char** argv)
 {
   if (argc < 2)
   {
     cout << endl << "Usage: cmd <sbml>" << endl;
+    exit(0);
   }
   const char* path = argv[1];
 
