@@ -5,6 +5,7 @@
 #include <stdlib.h>           /* C standard library                   */
 #include <glpk.h>             /* GNU GLPK linear/mixed integer solver */
 #include "optmization/glpk_lp.h"
+#include "optmization/model_glpk.h"
 #include "reaction.h"
 #include "blas/blas_utilities.h"
 
@@ -119,15 +120,15 @@ double demo1()
   optimization::GlpkLp* lp = new optimization::GlpkLp(2, 2);
   lp->set_name("short");
   lp->set_obj_dir(Op::MAX);
-  lp->set_row_alias(1, "p");
-  lp->set_row_bound(1, Op::LE, 1.0); // <= 1.0
-  lp->set_row_alias(2, "q");
-  lp->set_row_bound(2, Op::LE, 2.0); // <= 2.0
+  lp->set_row_alias(0, "p");
+  lp->set_row_bound(0, Op::LE, 1.0); // <= 1.0
+  lp->set_row_alias(1, "q");
+  lp->set_row_bound(1, Op::LE, 2.0); // <= 2.0
 
-  lp->set_col_alias(1, "x1");
-  lp->set_obj_coef(1, 0.6);
-  lp->set_col_alias(2, "x2");
-  lp->set_obj_coef(2, 0.5);
+  lp->set_col_alias(0, "x1");
+  lp->set_obj_coef(0, 0.6);
+  lp->set_col_alias(1, "x2");
+  lp->set_obj_coef(1, 0.5);
 
   const double matrix[2][2] = {
       { 1.0, 2.0 },
@@ -138,9 +139,239 @@ double demo1()
   lp->set_matrix_value(1, 0, 3.0); lp->set_matrix_value(1, 1, 1.0);
   lp->load_matrix();
   double opt = lp->solve();
+  lp->write_lp("D:/tmp_lp_2.txt");
+  delete lp;
+  return opt;
+}
+
+double demo4()
+{
+  const int r = 6;
+  const int c = 10;
+  optimization::GlpkLp* lp = new optimization::GlpkLp(r, c);
+  lp->set_name("network");
+  lp->set_obj_dir(Op::MAX);
+
+  const string row_names[r] = { "A", "B", "C", "D", "E", "P" };
+  const string col_names[c] = { "R1", "R2", "R3", "R4", "R5",
+                                "R6", "R7", "R8", "R9", "R10" };
+  double const M[r][c] = {
+      { 1, 0,  0,  0, -1, -1, -1,  0,  0,  0 }, //A
+      { 0, 1,  0,  0,  1,  0,  0, -1, -1,  0 }, //B
+      { 0, 0,  0,  0,  0,  1,  0,  1,  0, -1 }, //C
+      { 0, 0,  0,  0,  0,  0,  1,  0,  0, -1 }, //D
+      { 0, 0,  0, -1,  0,  0,  0,  0,  0,  1 }, //E
+      { 0, 0, -1,  0,  0,  0,  0,  0,  1,  1 }, //P
+  };
+
+  
+  lp->set_col_alias(0, col_names[0]);
+  lp->set_col_alias(1, col_names[1]);
+  lp->set_col_alias(2, col_names[2]);
+  lp->set_col_alias(3, col_names[3]);
+  lp->set_col_bound(-10, Op::LE, 0, Op::LE, 10);
+  lp->set_col_bound(-10, Op::LE, 1, Op::LE, 10);
+  lp->set_col_bound(0, Op::UNBOUNDED, 2, Op::UNBOUNDED, 0);
+  lp->set_col_bound(0, Op::LE, 3, Op::UNBOUNDED, 0);
+
+  for (int j = 4; j < c; j++)
+  {
+    lp->set_col_alias(j, col_names[j]);
+    lp->set_col_bound(-1000, Op::UNBOUNDED, j, Op::UNBOUNDED, 1000);
+  }
+
+
+  
+  for (int i = 0; i < r; i++)
+  {
+    lp->set_obj_coef(i, 0.0);
+    lp->set_row_alias(i, row_names[i]);
+    lp->set_row_bound(i, Op::EQUAL, 0.0);
+    for (int j = 0; j < c; j++)
+    {
+      lp->set_matrix_value(i, j, M[i][j]);
+    }
+  }
+
+  lp->set_obj_coef(2, 1.0);
+  lp->load_matrix();
+  lp->write_lp("D:/tmp_lp_3.txt");
+  double opt = lp->solve();
+
+  for (int j = 0; j < c; j++)
+  {
+    cout << col_names[j].c_str() << ": " << lp->get_col_prim(j) << endl;
+  }
 
   delete lp;
   return opt;
+}
+
+optimization::GlpkLp* makeGlpLp(vector<bio::Reaction> rxnList,
+                                map<int, string> cpdAlias,
+                                vector<string> rxnAlias)
+{
+  int c = (int) rxnList.size();
+  set<int> cpdSet;
+  map<int, int> cpdArray;
+  for (auto &rxn : rxnList)
+  {
+    for (auto &p : rxn.get_lhs_stoichiometry())
+    {
+      cpdSet.insert(p.first);
+    }
+    for (auto &p : rxn.get_rhs_stoichiometry())
+    {
+      cpdSet.insert(p.first);
+    }
+  }
+  int r = (int)cpdSet.size();
+  int k = 0;
+  for (auto &e : cpdSet)
+  {
+    cpdArray.insert({ e, k++ });
+    cout << k << ": " << e << endl;
+  }
+  cout << "Metabolites: " << r << endl;
+
+  cout << "Initialize Matrix" << endl;
+  double **M = new double*[r];
+  for (int i = 0; i < r; i++)
+  {
+    M[i] = new double[c];
+    for (int j = 0; j < c; j++)
+    {
+      M[i][j] = 0;
+    }
+  }
+  cout << "Initialize Reactions" << endl;
+  for (int i = 0; i < c; i++)
+  {
+    bio::Reaction rxn = rxnList[i];
+    for (auto &p : rxn.get_lhs_stoichiometry())
+    {
+      int cpd = p.first;
+      double value = -1 * p.second;
+      int x = cpdArray[cpd];
+      M[x][i] = value;
+    }
+    for (auto &p : rxn.get_rhs_stoichiometry())
+    {
+      int cpd = p.first;
+      double value = p.second;
+      int x = cpdArray[cpd];
+      M[x][i] = value;
+    }
+  }
+
+  optimization::GlpkModel* lp = new optimization::GlpkModel(r, c);
+  lp->add_drain();
+
+  cout << "Set LP Matrix" << endl;
+  for (int i = 0; i < r; i++)
+  {
+    lp->set_row_bound(i, Op::EQUAL, 0);
+    for (int j = 0; j < c; j++)
+    {
+      cout << M[i][j] << " ";
+      lp->set_matrix_value(i, j, M[i][j]);
+      
+    }
+    cout << endl;
+  }
+  lp->load_matrix();
+
+  for (int i = 0; i < c; i++)
+  {
+    lp->set_col_alias(i, rxnAlias[i]);
+    //reversible are unbound
+    //[0, +inf[
+    //[-inf, 0]
+    //lp->set_col_bound(-1000, Op::UNBOUNDED, j, Op::UNBOUNDED, 1000);
+  }
+  
+  return lp;
+}
+
+double demo5()
+{
+  const int r = 6;
+  const int c = 10;
+  double const M[r][c] = {
+      { 1, 0, 0, 0, -1, -1, -1, 0, 0, 0 }, //A
+      { 0, 1, 0, 0, 1, 0, 0, -1, -1, 0 }, //B
+      { 0, 0, 0, 0, 0, 1, 0, 1, 0, -1 }, //C
+      { 0, 0, 0, 0, 0, 0, 1, 0, 0, -1 }, //D
+      { 0, 0, 0, -1, 0, 0, 0, 0, 0, 1 }, //E
+      { 0, 0, -1, 0, 0, 0, 0, 0, 1, 1 }, //P
+  };
+  int const R[10] = { 0, 1, 0, 0, 0, 0, 0, 1, 0, 0 };
+  const string row_names[r] = { "A", "B", "C", "D", "E", "P" };
+  const string col_names[c] = { "R1", "R2", "R3", "R4", "R5",
+    "R6", "R7", "R8", "R9", "R10" };
+  vector<bio::Reaction> rxnList;
+  map<int, string> cpd_names;
+  vector<string> rxn_names;
+  for (int i = 0; i < c; i++)
+  {
+    rxn_names.push_back(col_names[i]);
+    bio::Reaction rxn;
+    for (int j = 0; j < r; j++)
+    {
+      double v = M[j][i];
+      if (v > 0)
+      {
+        rxn.add_rhs_stoichiometry(j, v);
+      }
+      else if (v < 0)
+      {
+        rxn.add_lhs_stoichiometry(j, -1 * v);
+      }
+    }
+    if (R[i])
+    {
+      rxn.set_reversible(true);
+    }
+    rxnList.push_back(rxn);
+  }
+  for (int i = 0; i < r; i++)
+  {
+    cpd_names.insert({ i, row_names[i] });
+  }
+  
+  std::cout << "Rxn: " << rxnList.size() << endl;
+  for (auto &e : rxnList)
+  {
+    cout << e << endl;
+  }
+  
+  optimization::GlpkLp* lp = makeGlpLp(rxnList, cpd_names, rxn_names);
+  lp->write_lp("D:/tmp_lp_5.txt");
+  double z = lp->solve();
+  delete lp;
+  return z;
+}
+
+double demo6()
+{
+  vector<bio::Reaction> rxnList;
+  map<int, string> cpd_names;
+  vector<string> rxn_names;
+  bio::Reaction rxn1;
+  rxn1.add_lhs_stoichiometry(  58310, 1.0); //C00002
+  rxn1.add_lhs_stoichiometry( 370761, 1.0); //C00022
+  rxn1.add_rhs_stoichiometry(1086446, 1.0); //C00008
+  rxn1.add_rhs_stoichiometry( 259799, 1.0); //C00074
+
+  rxnList.push_back(rxn1);
+  rxn_names.push_back("R00200");
+  cpd_names.insert({ 58310, "C00002" });
+  cpd_names.insert({ 370761, "C00022" });
+  cpd_names.insert({ 1086446, "C00008" });
+  cpd_names.insert({ 259799, "C00074" });
+  optimization::GlpkLp* lp = makeGlpLp(rxnList, cpd_names, rxn_names);
+  delete lp;
+  return 0;
 }
 
 double demo0()
@@ -179,6 +410,7 @@ double demo0()
   x2 = glp_get_col_prim(lp, 2);
   //printf("z = %g; x1 = %g; x2 = %g\n", z, x1, x2);
   /* housekeeping */
+  glp_write_lp(lp, NULL, "D:/tmp_lp_1.txt");
   glp_delete_prob(lp);
   glp_free_env();
   return z;
@@ -272,6 +504,9 @@ int main(int argc, char** argv)
   cout << "demo1: " << demo1() << endl;
   cout << "demo2: " << demo2(2, 2, m, o_2, r_db_2, r_db_type_2) << endl;
   cout << "demo3: " << demo3(6, 10, M2, o_3, r_db_3, r_db_type_3) << endl;
+  cout << "demo4: " << demo4() << endl;
+  cout << "demo5: " << demo5() << endl;
+  cout << "demo5: " << demo6() << endl;
 
   delete M2;
   delete m;

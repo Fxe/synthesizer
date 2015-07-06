@@ -13,6 +13,7 @@ enum class Op
   EQUAL = 0,
   GE = 1,
   LE = 2,
+  UNBOUNDED = 100,
   MAX = 10,
   MIN = 11,
 };

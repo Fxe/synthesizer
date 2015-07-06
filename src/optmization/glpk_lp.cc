@@ -41,6 +41,8 @@ GlpkLp::~GlpkLp()
   delete this->ja;
   delete this->ar;
   glp_delete_prob(lp);
+
+  cout << "Dest LP prob" << endl;
 };
 
 void GlpkLp::set_name(string name)
@@ -50,17 +52,18 @@ void GlpkLp::set_name(string name)
 
 void GlpkLp::set_row_alias(int row, string name)
 {
-  glp_set_row_name(this->lp, row, name.c_str());
+  glp_set_row_name(this->lp, row + 1, name.c_str());
 };
 
 void GlpkLp::set_col_alias(int col, string name)
 {
-  glp_set_row_name(this->lp, col, name.c_str());
+  cout << "Col: " << col + 1 << " -> " << name.c_str() << endl;
+  glp_set_col_name(this->lp, col + 1, name.c_str());
 };
 
 void GlpkLp::set_obj_coef(int var, double coef)
 {
-  glp_set_obj_coef(this->lp, var, coef);
+  glp_set_obj_coef(this->lp, var + 1, coef);
 };
 
 void GlpkLp::set_obj_dir(Op op)
@@ -72,13 +75,30 @@ void GlpkLp::set_obj_dir(Op op)
 void GlpkLp::set_row_bound(int var, Op op, double value)
 {
   int type = this->to_glp_bound_type(op);
-  glp_set_row_bnds(this->lp, var, type, 0.0, value);
+  glp_set_row_bnds(this->lp, var + 1, type, 0.0, value);
 }
 
 void GlpkLp::set_col_bound(double lb, Op op_lb, int var, Op op_ub, double ub)
 {
   int type = this->to_glp_bound_type(op_lb);
-  glp_set_col_bnds(this->lp, var, type, lb, ub);
+  if (op_lb == Op::UNBOUNDED && op_ub == Op::UNBOUNDED)
+  {
+    type = GLP_FR;
+  }
+  else if (op_lb == Op::UNBOUNDED)
+  {
+    type = GLP_UP;
+  }
+  else if (op_ub == Op::UNBOUNDED)
+  {
+    type = GLP_LO;
+  }
+  else
+  {
+    type = GLP_DB;
+  }
+  cout << var + 1 << " : " << type << endl;
+  glp_set_col_bnds(this->lp, var + 1, type, lb, ub);
 }
 
 void GlpkLp::set_matrix()
@@ -90,7 +110,7 @@ void GlpkLp::set_matrix_value(int row, int col, double value)
 {
   if (row < this->rows && col < this->cols)
   {
-    this->ar[cols * row + col] = value;
+    this->ar[cols * row + col + 1] = value;
   }
   else
   {
@@ -100,16 +120,20 @@ void GlpkLp::set_matrix_value(int row, int col, double value)
 
 void GlpkLp::load_matrix()
 {
-  glp_set_col_bnds(this->lp, 1, GLP_LO, 0.0, 0.0);
-  glp_set_col_bnds(this->lp, 1, GLP_LO, 0.0, 0.0);
-  cout << "load matrix" << endl;
+  //glp_set_col_bnds(this->lp, 1, GLP_LO, 0.0, 0.0);
+  //glp_set_col_bnds(this->lp, 2, GLP_LO, 0.0, 0.0);
   int ne = this->rows * this->cols;
+
+  /*
+  cout << "load matrix" << endl;
+  
   for (int i = 0; i < ne; i++)
   {
     cout << "ia[" << i + 1 << "] = " << this->ia[i + 1] << endl;
     cout << "ja[" << i + 1 << "] = " << this->ja[i + 1] << endl;
     cout << "ar[" << i + 1 << "] = " << this->ar[i + 1] << endl;
   }
+  */
   glp_load_matrix(this->lp, ne, this->ia, this->ja, this->ar);
 }
 
@@ -118,6 +142,16 @@ double GlpkLp::solve()
   glp_simplex(this->lp, NULL);
   double z = glp_get_obj_val(this->lp);
   return z;
+}
+
+double GlpkLp::get_col_prim(int var)
+{
+  return glp_get_col_prim(this->lp, var + 1);
+}
+
+int GlpkLp::write_lp(string path)
+{
+  return glp_write_lp(lp, NULL, path.c_str());
 }
 
 int GlpkLp::to_glp_bound_type(Op op)
