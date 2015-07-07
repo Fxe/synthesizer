@@ -374,6 +374,91 @@ double demo6()
   return 0;
 }
 
+double demo7(const string path, const string obj)
+{
+  double** matrix;
+  int* rev;
+  double* lb;
+  double* ub;
+  int rows;
+  int cols;
+  vector<string> rxn_alias;
+  vector<string> cpd_alias; //Ec_core_flux1_no_b
+  blas::read_matrix_file(path,
+                         &rows, &cols, &matrix, &rev, &ub, &lb, 
+                         &rxn_alias, &cpd_alias);
+  cout << "Metabolites: " << cpd_alias.size() << endl;
+  cout << "Reactions  : " << rxn_alias.size() << endl;
+  
+  int i = 0;
+  for (auto &e : rxn_alias)
+  {
+    //cout << ++i << "[" << e.c_str() << "]" << endl;
+  }
+  i = 0;
+  for (auto &e : cpd_alias)
+  {
+    //cout << ++i << "[" <<e.c_str() << "]" << endl;
+  }
+
+  optimization::GlpkLp* lp = new optimization::GlpkLp(rows, cols);
+  lp->set_name("model");
+  for (int i = 0; i < rows; i++)
+  {
+    lp->set_row_alias(i, cpd_alias[i]);
+    lp->set_row_bound(i, Op::EQUAL, 0);
+    for (int j = 0; j < cols; j++)
+    {
+      //cout << matrix[i][j] << " ";
+      lp->set_matrix_value(i, j, matrix[i][j]);
+    }
+    //cout << endl;
+  }
+  for (int i = 0; i < cols; i++)
+  {
+    lp->set_col_alias(i, rxn_alias[i]);
+    lp->set_col_bound(lb[i], Op::LE, i, Op::LE, ub[i]);
+  }
+  lp->load_matrix();
+
+  map<string, int> rxn_alias_index;
+  for (int i = 0; i < rxn_alias.size(); i++)
+  {
+    rxn_alias_index.insert({ rxn_alias[i], i});
+  }
+  lp->set_obj_dir(Op::MAX);
+  //R_biomass_SC5_notrace
+  //R_Biomass_Ecoli_core_N__w_GAM_
+  lp->set_obj_coef(rxn_alias_index[obj], 1.0);
+  //lp->write_lp("D:/tmp_lp_7.txt");
+  double z = lp->solve();
+  glp_prob* glp_lp = lp->get_lp();
+  map<string, double> flux_map;
+  double ini = blas::WallTime();
+  for (int i = 1; i <= cols; i++)
+  {
+    int type_ = glp_get_col_type(glp_lp, i);
+    double lb_ = glp_get_col_lb(glp_lp, i);
+    double ub_ = glp_get_col_ub(glp_lp, i);
+    glp_set_col_bnds(glp_lp, i, GLP_FX, 0.0, 0.0);
+    z = lp->solve();
+    flux_map.insert({ rxn_alias[i - 1], z });
+    glp_set_col_bnds(glp_lp, i, type_, lb_, ub_);
+  }
+  double end = blas::WallTime();
+  for (auto &e : rxn_alias)
+  {
+    cout << e.c_str() << ": " << flux_map[e] << endl;
+  }
+
+  cout << ini << " -> " << end << endl;
+  cout << end - ini << endl;
+  cout << cols / (end - ini) << " FBA/s" << endl;
+  delete lp;
+
+  return z;
+}
+
 double demo0()
 {
   /* declare variables */
@@ -499,16 +584,24 @@ int main(int argc, char** argv)
   double o_3[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
   double r_db_3[] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
   int r_db_type_3[] = { GLP_FX, GLP_FX, GLP_FX, GLP_FX, GLP_FX, GLP_FX };
-  cout << "demo0: " << demo0() << endl;
-  cout << "demo0: " << demo0() << endl;
+  cout << "demo0: " << demo0() << endl; //glp base
+  cout << "demo0: " << demo0() << endl; //glp base
   cout << "demo1: " << demo1() << endl;
   cout << "demo2: " << demo2(2, 2, m, o_2, r_db_2, r_db_type_2) << endl;
   cout << "demo3: " << demo3(6, 10, M2, o_3, r_db_3, r_db_type_3) << endl;
-  cout << "demo4: " << demo4() << endl;
-  cout << "demo5: " << demo5() << endl;
-  cout << "demo5: " << demo6() << endl;
+  cout << "demo4: " << demo4() << endl; //glp class
+  cout << "demo5: " << demo5() << endl; //make glp
+  cout << "demo6: " << demo6() << endl; //dummy kegg reaction
+  //const string file = "D:/home/data/sbml/biomodels/matrix/iMM904_no_b.txt";
+  //const string obj = "R_biomass_SC5_notrace";
+  //const string file = "D:/home/data/sbml/biomodels/matrix/Ec_core_flux1_no_b.txt";
+  //const string obj = "R_Biomass_Ecoli_core_N__w_GAM_";
+  const string file(argv[1]);
+  const string obj(argv[2]);
+  cout << "demo7: " << demo7(file, obj) << endl;
 
   delete M2;
   delete m;
   return 0;
 }
+

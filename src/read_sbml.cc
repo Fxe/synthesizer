@@ -19,7 +19,8 @@ int mains(int argc, char** argv)
     cout << endl << "Usage: cmd <sbml>" << endl;
     exit(0);
   }
-  const char* path = argv[1];
+  const char* path = "D:/home/data/sbml/biomodels/sbml/toy1.xml";
+  //argv[1];
 
   SBMLDocument* sbml;
   SBMLReader reader;
@@ -27,7 +28,7 @@ int mains(int argc, char** argv)
   sbml = reader.readSBML(path);
 
   sbml->printErrors(cerr);
-
+  /*
   Model* model = sbml->getModel();
 
   for (unsigned int i = 0; i < model->getNumReactions(); i++)
@@ -43,6 +44,7 @@ int mains(int argc, char** argv)
     {
     }
   }
+  */
   delete sbml;
   return 0;
 }
