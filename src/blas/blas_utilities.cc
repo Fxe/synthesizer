@@ -13,7 +13,15 @@
 double wall_time()
 {
 #ifdef UNIX
-
+  std::cout << "Unix time" << endl;
+  struct timeval time;
+  if (gettimeofday(&time,NULL))
+  {
+//  Handle error
+    std::cerr << "Unable to gettimeofday" << std::endl;
+    return 0;
+  }
+  return (double)time.tv_sec + (double)time.tv_usec * .000001;
 #elif WIN32
   LARGE_INTEGER time, freq;
   if (!QueryPerformanceFrequency(&freq)){

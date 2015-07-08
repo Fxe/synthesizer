@@ -1,6 +1,7 @@
 #ifndef SYNTHESIZER_BLAS_BLAS_UTILITIES_H_
 #define SYNTHESIZER_BLAS_BLAS_UTILITIES_H_
 
+#include <string>
 #include <vector>
 
 using namespace std;
