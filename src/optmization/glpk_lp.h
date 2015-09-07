@@ -35,13 +35,16 @@ class GlpkLp
     double get_col_prim(int var);
     //io
     int write_lp(string path);
+    glp_prob* get_lp();
 
   private:
     int rows;
     int cols;
+    //glpk matrix
     int* ia;
     int* ja;
     double* ar;
+
     glp_prob *lp;
 
     int to_glp_bound_type(Op op);

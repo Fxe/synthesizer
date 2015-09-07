@@ -96,6 +96,9 @@ void GlpkLp::set_col_bound(double lb, Op op_lb, int var, Op op_ub, double ub)
   else
   {
     type = GLP_DB;
+    if (lb == ub){
+      type = GLP_FX;
+    }
   }
   cout << var + 1 << " : " << type << endl;
   glp_set_col_bnds(this->lp, var + 1, type, lb, ub);
@@ -147,6 +150,11 @@ double GlpkLp::solve()
 double GlpkLp::get_col_prim(int var)
 {
   return glp_get_col_prim(this->lp, var + 1);
+}
+
+glp_prob* GlpkLp::get_lp()
+{
+  return this->lp;
 }
 
 int GlpkLp::write_lp(string path)
