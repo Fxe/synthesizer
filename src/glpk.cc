@@ -4,10 +4,15 @@
 #include <stdio.h>            /* C input/output                       */
 #include <stdlib.h>           /* C standard library                   */
 #include <glpk.h>             /* GNU GLPK linear/mixed integer solver */
+#include <sstream>
+#include "io/io.h"
 #include "optmization/glpk_lp.h"
 #include "optmization/model_glpk.h"
 #include "reaction.h"
 #include "blas/blas_utilities.h"
+#include "model/stoichiometric_model.h"
+#include "model/fba_adapter.h"
+#include "biodb_service.h"
 
 using namespace std;
 
@@ -232,9 +237,9 @@ optimization::GlpkLp* makeGlpLp(vector<bio::Reaction> rxnList,
     cpdArray.insert({ e, k++ });
     cout << k << ": " << e << endl;
   }
-  cout << "Metabolites: " << r << endl;
+  cout << "makeGlpLp - Metabolites: " << r << endl;
 
-  cout << "Initialize Matrix" << endl;
+  cout << "makeGlpLp - Initialize Matrix" << endl;
   double **M = new double*[r];
   for (int i = 0; i < r; i++)
   {
@@ -244,7 +249,7 @@ optimization::GlpkLp* makeGlpLp(vector<bio::Reaction> rxnList,
       M[i][j] = 0;
     }
   }
-  cout << "Initialize Reactions" << endl;
+  cout << "makeGlpLp - Initialize Reactions" << endl;
   for (int i = 0; i < c; i++)
   {
     bio::Reaction rxn = rxnList[i];
@@ -267,7 +272,7 @@ optimization::GlpkLp* makeGlpLp(vector<bio::Reaction> rxnList,
   optimization::GlpkModel* lp = new optimization::GlpkModel(r, c);
   lp->add_drain();
 
-  cout << "Set LP Matrix" << endl;
+  cout << "makeGlpLp - Set LP Matrix" << endl;
   for (int i = 0; i < r; i++)
   {
     lp->set_row_bound(i, Op::EQUAL, 0);
@@ -384,9 +389,9 @@ double demo7(const string path, const string obj)
   int cols;
   vector<string> rxn_alias;
   vector<string> cpd_alias; //Ec_core_flux1_no_b
-  blas::read_matrix_file(path,
-                         &rows, &cols, &matrix, &rev, &ub, &lb, 
-                         &rxn_alias, &cpd_alias);
+  io::read_matrix_file(path,
+                       &rows, &cols, &matrix, &rev, &ub, &lb, 
+                       &rxn_alias, &cpd_alias);
   cout << "Metabolites: " << cpd_alias.size() << endl;
   cout << "Reactions  : " << rxn_alias.size() << endl;
   
@@ -420,13 +425,13 @@ double demo7(const string path, const string obj)
     lp->set_col_bound(lb[i], Op::LE, i, Op::LE, ub[i]);
   }
   lp->load_matrix();
-
+  lp->set_obj_dir(Op::MAX);
   map<string, int> rxn_alias_index;
   for (int i = 0; i < rxn_alias.size(); i++)
   {
     rxn_alias_index.insert({ rxn_alias[i], i});
   }
-  lp->set_obj_dir(Op::MAX);
+  
   //R_biomass_SC5_notrace
   //R_Biomass_Ecoli_core_N__w_GAM_
   lp->set_obj_coef(rxn_alias_index[obj], 1.0);
@@ -446,17 +451,78 @@ double demo7(const string path, const string obj)
     glp_set_col_bnds(glp_lp, i, type_, lb_, ub_);
   }
   double end = blas::WallTime();
+  std::ostringstream strs;
   for (auto &e : rxn_alias)
   {
-    cout << e.c_str() << ": " << flux_map[e] << endl;
+    strs << e.c_str() << ": " << flux_map[e] << endl;
   }
-
+  io::WriteFile(strs.str(), "D:/tmp/lol.txt");
   cout << ini << " -> " << end << endl;
   cout << end - ini << endl;
   cout << cols / (end - ini) << " FBA/s" << endl;
   delete lp;
 
   return z;
+}
+
+double demo8(const string path, const string obj)
+{
+  model::StoichiometricModel sm = *io::ReadMatrixFile2(path);
+  model::FluxBalanceAnalysisAdapter fba(sm);
+  //int biomass_index = fba.get_lp()->get_col_index("R_Biomass_Ecoli_core_N__w_GAM_");
+  int biomass_index = fba.get_lp()->get_col_index(obj);
+  fba.get_lp()->set_obj_coef(biomass_index, 1.0);
+  int n_rxn = fba.get_lp()->get_cols();
+  vector<double> flux_values(n_rxn);
+
+  double ini = blas::WallTime();
+  for (int i = 0; i < n_rxn; i++)
+  {
+    fba.knock_out_reaction(i);
+    double z = fba.solve();
+    flux_values[i] = z;
+    fba.reset_knockouts();
+  }
+  double end = blas::WallTime();
+  
+  for (int i = 0; i < n_rxn; i++)
+  {
+    cout << sm.get_rxn_alias(i) << ": " << flux_values[i] << endl;
+  }
+  
+  cout << ini << " -> " << end << endl;
+  cout << end - ini << endl;
+  cout << n_rxn / (end - ini) << " FBA/s" << endl;
+
+  return fba.solve();
+}
+
+double demo9(const string path, const string obj)
+{
+  model::StoichiometricModel sm = *io::ReadMatrixFile2(path);
+  model::FluxBalanceAnalysisAdapter fba(sm);
+  int biomass_index = fba.get_lp()->get_col_index(obj);
+  fba.get_lp()->set_obj_coef(biomass_index, 1.0);
+  int n_rxn = fba.get_lp()->get_cols();
+  vector<double> flux_values(n_rxn);
+  model::FluxBalanceSolution* fbs = fba.fba();
+  //fba.solve2();
+  return fbs->obj;
+}
+
+double demo10(const string path, const string obj)
+{
+  model::StoichiometricModel sm = *io::ReadMatrixFile2(path);
+  model::FluxBalanceAnalysisAdapter fba(sm);
+  int biomass_index = fba.get_lp()->get_col_index(obj);
+  fba.get_lp()->set_obj_coef(biomass_index, 1.0);
+  int n_rxn = fba.get_lp()->get_cols();
+  vector<double> flux_values(n_rxn);
+  model::FluxBalanceSolution* fbs_fbs = fba.fba();
+  model::FluxBalanceSolution* fbs_pfba = fba.pfba(biomass_index);
+  cout << " FBA flux sum " << fbs_fbs->flux_sum() << endl;
+  cout << "pFBA flux sum " << fbs_pfba->flux_sum() << endl;
+  return fbs_fbs->obj;
 }
 
 double demo0()
@@ -513,12 +579,71 @@ void matrix(int r, int c, const double m[][2])
   }
 }
 
+
+int main(int argc, char** argv)
+{
+  biodb::wut("D:/tmp/biodb_pyk.json");
+  
+  biodb::BiodbService service;
+  service.getReaction(10);
+  service.getReaction("LigandReaction", "R00200");
+  /*
+  //glp_term_out(GLP_OFF);
+  vector<bio::Reaction> rxnList;
+  map<int, string> cpd_names;
+  vector<string> rxn_names;
+  bio::Reaction rxn1;
+  rxn1.add_lhs_stoichiometry(58310, 1.0); //C00002
+  rxn1.add_lhs_stoichiometry(370761, 1.0); //C00022
+  rxn1.add_rhs_stoichiometry(1086446, 1.0); //C00008
+  rxn1.add_rhs_stoichiometry(259799, 1.0); //C00074
+  
+
+  bio::Reaction d1;
+  d1.add_lhs_stoichiometry(58310, 1.0); //C00002
+  bio::Reaction d2;
+  d2.add_lhs_stoichiometry(370761, 1.0); //C00002
+  bio::Reaction d3;
+  d3.add_lhs_stoichiometry(1086446, 1.0); //C00002
+  bio::Reaction d4;
+  d4.add_lhs_stoichiometry(259799, 1.0); //C00002
+
+  rxnList.push_back(rxn1);
+  rxnList.push_back(d1);
+  rxnList.push_back(d2);
+  rxnList.push_back(d3);
+  rxnList.push_back(d4);
+  rxn_names.push_back("R00200");
+  rxn_names.push_back("D1");
+  rxn_names.push_back("D2");
+  rxn_names.push_back("D3");
+  rxn_names.push_back("D4");
+  cpd_names.insert({ 58310, "C00002" });
+  cpd_names.insert({ 370761, "C00022" });
+  cpd_names.insert({ 1086446, "C00008" });
+  cpd_names.insert({ 259799, "C00074" });
+  optimization::GlpkLp* lp = makeGlpLp(rxnList, cpd_names, rxn_names);
+  lp->set_col_bound(1, Op::EQUAL, lp->get_col_index("R00200"), Op::EQUAL, 1);
+  lp->set_col_bound(-10, Op::GE, lp->get_col_index("D1"), Op::GE, 10);
+  lp->set_col_bound(-10, Op::GE, lp->get_col_index("D2"), Op::GE, 10);
+  lp->set_col_bound(-10, Op::GE, lp->get_col_index("D3"), Op::GE, 10);
+  lp->set_col_bound(-10, Op::GE, lp->get_col_index("D4"), Op::GE, 10);
+  lp->write_lp("D:/lp_temp.txt");
+  
+  lp->solve();
+
+  delete lp;
+  */
+  return 0;
+}
+
 /*
  * cols -> reactions
  * rows -> metabolites
  */
-int main(int argc, char** argv)
+int main_demo(int argc, char** argv)
 {
+  glp_term_out(GLP_OFF);
   vector<int> array_int;
   vector<bio::Reaction> array_reaction;
   bio::Reaction r1;
@@ -594,14 +719,17 @@ int main(int argc, char** argv)
   cout << "demo6: " << demo6() << endl; //dummy kegg reaction
   //const string file = "D:/home/data/sbml/biomodels/matrix/iMM904_no_b.txt";
   //const string obj = "R_biomass_SC5_notrace";
-  //const string file = "D:/home/data/sbml/biomodels/matrix/Ec_core_flux1_no_b.txt";
+  //const string file = "D:/var/biomodels/matrix/Ec_core_flux1_no_b.txt";
   //const string obj = "R_Biomass_Ecoli_core_N__w_GAM_";
-  const string file(argv[1]);
-  const string obj(argv[2]);
-  cout << "demo7: " << demo7(file, obj) << endl;
-
+  const string file = "D:/var/biomodels/matrix/iMM904_no_b.txt";
+  const string obj = "R_biomass_SC5_notrace";
+  //const string file(argv[1]);
+  //const string obj(argv[2]);
+  //cout << "demo7: " << demo7(file, obj) << endl;
+  //cout << "demo8: " << demo8(file, obj) << endl;
+  //cout << "demo9: " << demo9(file, obj) << endl;
+  cout << "demo10: " << demo10(file, obj) << endl;
   delete M2;
   delete m;
   return 0;
 }
-

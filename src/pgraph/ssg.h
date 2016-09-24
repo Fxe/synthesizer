@@ -19,7 +19,7 @@ class SolutionStructureGeneration
     ProcessGraph* pg_;
     set<int>* p_;
     set<int>* r_;
-    map<int, set<int>*>* deltaMap_;
+    map<int, set<int>*> deltaMap_;
     void ssg(set<int>* p, set<int>* m, map<int, set<int>>*);
     void initDeltaMap();
     set<int>* delta(int x);

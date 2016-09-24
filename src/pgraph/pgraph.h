@@ -10,8 +10,8 @@ namespace pgraph {
 class ProcessGraph {
   public:
     ProcessGraph(vector<OperatingUnit> *o);
-    OperatingUnit& getOperatingUnit(int id);
-    map<int, OperatingUnit>& getOperatingUnitMap();
+    OperatingUnit* getOperatingUnit(int id);
+    map<int, OperatingUnit>* getOperatingUnitMap();
     string getMaterialAlias(int m);
     void setMaterialAlias(int m, string alias);
   private:
@@ -19,6 +19,13 @@ class ProcessGraph {
     map<int, string> *operating_unit_alias;
     map<int, OperatingUnit> *o_;
 };
+
+class ProcessGraphFactory {
+  public:
+
+    static ProcessGraph* make();
+};
+
 } // namespace pgraph
 
 #endif // SYNTHESIZER_PGRAPH_PGRAPH

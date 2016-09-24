@@ -29,22 +29,27 @@ void pgraph::ProcessGraph::setMaterialAlias(int m, string alias) {
   material_alias->insert(pair<int, string>(m, alias));
 }
 
-pgraph::OperatingUnit& pgraph::ProcessGraph::getOperatingUnit(int id)
+pgraph::OperatingUnit* pgraph::ProcessGraph::getOperatingUnit(int id)
 {
   map<int, OperatingUnit>::iterator it = o_->find(id);
   if (it == o_->end())
   {
     OperatingUnit *o = 0;
-    return *o;
+    return o;
   }
   else
   {
     OperatingUnit ou = it->second;
-    return ou;
+    return &ou;
   }
 }
 
-map<int, pgraph::OperatingUnit>& pgraph::ProcessGraph::getOperatingUnitMap()
+map<int, pgraph::OperatingUnit>* pgraph::ProcessGraph::getOperatingUnitMap()
 {
-  return *o_;
+  return o_;
+}
+
+pgraph::ProcessGraph* pgraph::ProcessGraphFactory::make()
+{
+  return NULL;
 }

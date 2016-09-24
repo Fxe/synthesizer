@@ -6,6 +6,38 @@ using namespace std;
 
 namespace pgraph
 {
+  
+
+  map<int, set<int>*>* buildDelta(OperatingUnit** ouArray, int ou_sz)
+  {
+    map<int, set<int>*>* delta = new map<int, set<int>*>();
+    for (int i = 0; i < ou_sz; i++)
+    {
+      OperatingUnit* ou = ouArray[i];
+      int id = ou->getId();
+      for (auto &p : *ou->get_b())
+      {
+        cout << "p: " << p << endl;;
+        map<int, set<int>*>::iterator f = delta->find(p);
+        if (f == delta->end())
+        {
+          cout << "Add key: " << p << endl;
+          delta->insert(make_pair(p, new set<int>()));
+          cout << "Add: " << p << " -> " << id << endl;
+          delta->find(p)->second->insert(id);
+        }
+        else
+        {
+          cout << "Add: " << p << " -> " << id << endl;
+          f->second->insert(id);
+        }
+        //if existes key "p"
+        //if not
+      }
+    }
+
+    return delta;
+  }
 
   set<set<int>> PowerSet(set<int> s)
   {
@@ -28,10 +60,10 @@ namespace pgraph
   {
     string str = "[";
     //set<int>::iterator it;
-    for (auto &e : s)
-    {
-      str += to_string(e) + ", ";
-    }
+    //for (auto &e : s)
+    //{
+    //  str += to_string(e) + ", ";
+    //}
     str += "]";
     return str;
   }

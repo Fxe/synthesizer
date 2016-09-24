@@ -11,5 +11,5 @@ GlpkModel::GlpkModel(int rows, int cols) : GlpkLp(rows, cols)
 
 void GlpkModel::add_drain()
 {
-  cout << "can't add drain now" << endl;
+  cout << "GlpkModel - add_drain() not implemented" << endl;
 }

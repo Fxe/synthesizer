@@ -19,6 +19,7 @@ pgraph::SolutionStructureGeneration::SolutionStructureGeneration(int p, set<int>
 
 void pgraph::SolutionStructureGeneration::solve()
 {
+  //this->deltaMap_ = buildDelta();
   initDeltaMap();
   
   cout << "I am solving ... " << endl;
@@ -29,7 +30,8 @@ void pgraph::SolutionStructureGeneration::solve()
 void pgraph::SolutionStructureGeneration::ssg(set<int>* p, set<int>* m, 
                                               map<int, set<int>> *d_map)
 {
-  cout << "P: " << set_string(*p) << " M: " << set_string(*m) << " D: " << map_string(*d_map) << endl;
+  //cout << "P: " << set_string(*p) << " M: " << set_string(*m) << " D: " << map_string(*d_map) << endl;
+  cout << "P: " << endl;
   if (p->empty())
   {
     cout << "Solution: " << map_string(*d_map) << endl;
@@ -55,17 +57,19 @@ void pgraph::SolutionStructureGeneration::ssg(set<int>* p, set<int>* m,
       
       for (auto &ou_id : e)
       {
-        OperatingUnit ou = pg_->getOperatingUnit(ou_id);
-        set<int> *ou_lhs = ou.get_a();
+        OperatingUnit* ou = pg_->getOperatingUnit(ou_id);
+        set<int> *ou_lhs = ou->get_a();
         for (auto &ee : *ou_lhs)
         {
           p_new.insert(ee);
         }
       }
       set<int> p_new_f;
+	  /*
       set_difference(p_new.begin(), p_new.end(), 
                      r_->begin(), r_->end(), 
                      inserter(p_new_f, p_new_f.end()));
+	  */
 
       cout << set_string(p_new) << set_string(*r_) << set_string(p_new_f) << endl;
 
@@ -80,26 +84,30 @@ void pgraph::SolutionStructureGeneration::ssg(set<int>* p, set<int>* m,
 
 void pgraph::SolutionStructureGeneration::initDeltaMap()
 {
-  deltaMap_ = new map < int, set<int>* >;
-  for (auto const &it : pg_->getOperatingUnitMap())
+  cout << "initDeltaMap" << endl;
+  deltaMap_.clear();
+  //map<int, pg_->getOperatingUnitMap();
+  map<int, OperatingUnit>::iterator it = pg_->getOperatingUnitMap()->begin();
+  
+  for (;it != pg_->getOperatingUnitMap()->end(); it++)
   {
-    OperatingUnit ou = it.second;
+    OperatingUnit ou = it->second;
     set<int>::iterator ou_rhs = ou.get_b()->begin();
     for (; ou_rhs != ou.get_b()->end(); ou_rhs++)
     {
-      if (deltaMap_->find(*ou_rhs) == deltaMap_->end())
+      if (deltaMap_.find(*ou_rhs) == deltaMap_.end())
       {
-        deltaMap_->insert(make_pair(*ou_rhs, new set<int>));
-        deltaMap_->find(*ou_rhs)->second->insert(ou.getId());
+        deltaMap_.insert(make_pair(*ou_rhs, new set<int>));
+        deltaMap_.find(*ou_rhs)->second->insert(ou.getId());
       }
       else
       {
-        deltaMap_->find(*ou_rhs)->second->insert(ou.getId());
+        deltaMap_.find(*ou_rhs)->second->insert(ou.getId());
       }
     }
   }
   string str = "{";
-  for (auto &e : *deltaMap_)
+  for (auto &e : deltaMap_)
   {
     str += to_string(e.first) + " : " + set_string(*e.second);
   }
@@ -109,8 +117,8 @@ void pgraph::SolutionStructureGeneration::initDeltaMap()
 
 set<int>* pgraph::SolutionStructureGeneration::delta(int x)
 {
-  map <int, set<int>*>::iterator it = deltaMap_->find(x);
-  if (it == deltaMap_->end())
+  map <int, set<int>*>::iterator it = deltaMap_.find(x);
+  if (it == deltaMap_.end())
   {
     return new set < int > ;
   }
