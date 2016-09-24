@@ -2,7 +2,7 @@
 #define SYNTHESIZER_BIODB_BIODB_SERVICE_H_
 
 #include "reaction.h"
-#include <json\json.h>
+#include <json/json.h>
 #include <string>
 
 using namespace::std;

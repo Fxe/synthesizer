@@ -1,5 +1,8 @@
 #include "stoichiometric_model.h"
+#include <iostream>
+#include <string>
 
+using namespace std;
 using namespace model;
 
 StoichiometricModel::StoichiometricModel()

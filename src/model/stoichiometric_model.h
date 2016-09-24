@@ -1,8 +1,10 @@
 #ifndef SYNTHESIZER_MODEL_STOICHIOMETRIC_MODEL_H_
 #define SYNTHESIZER_MODEL_STOICHIOMETRIC_MODEL_H_
 #include <vector>
+#include <string>
 #include "blas/matrix.h"
 
+using namespace std;
 using std::vector;
 using std::pair;
 

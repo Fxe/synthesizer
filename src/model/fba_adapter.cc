@@ -1,5 +1,6 @@
 #include "fba_adapter.h"
 #include <iostream>
+#include <cmath>
 
 using namespace model;
 using namespace std;

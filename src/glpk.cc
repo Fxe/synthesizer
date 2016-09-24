@@ -582,7 +582,7 @@ void matrix(int r, int c, const double m[][2])
 
 int main(int argc, char** argv)
 {
-  biodb::wut("D:/tmp/biodb_pyk.json");
+  //biodb::wut("D:/tmp/biodb_pyk.json");
   
   biodb::BiodbService service;
   service.getReaction(10);

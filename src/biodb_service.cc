@@ -1,8 +1,8 @@
 #include "biodb_service.h"
 #include "reaction.h"
 #include <fstream>
-#include <json\json.h>
-#include <curl\curl.h>
+#include <json/json.h>
+#include <curl/curl.h>
 #include <iostream>
 #include <string>
 
