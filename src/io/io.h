@@ -1,6 +1,8 @@
 #ifndef SYNTHESIZER_IO_IO_H_
 #define SYNTHESIZER_IO_IO_H_
 
+#include <map>
+#include <set>
 #include <vector>
 #include "blas/matrix.h"
 #include "model/stoichiometric_model.h"
@@ -10,6 +12,11 @@ using blas::Matrix;
 
 namespace io
 {
+
+  vector<string> split(string str, char delimiter);
+  void ReadProblemFile(const string path, set<long>* substrates);
+  void ReadSolutionFile(const string path, set<string>* reactions, map<long, set<string>>* solutions, map<string, set<long>>* targetToSolutions);
+
   model::StoichiometricModel* ReadMatrixFile2(const string path);
 
   void ReadMatrixFile(const string path, Matrix* matrix, vector<int> rev,

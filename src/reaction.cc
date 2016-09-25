@@ -1,13 +1,24 @@
 #include "reaction.h"
 
+bio::Metabolite::Metabolite()
+{
+
+}
+
+bio::Metabolite::Metabolite(long id, string entry)
+{
+  this->id = id;
+  this->entry = entry;
+}
+
 bio::Reaction::Reaction()
 {
 }
 
 bio::Reaction::Reaction(long id, string entry)
 {
-  this->id_ = id;
-  this->entry_ = entry;
+  this->id = id;
+  this->entry = entry;
 }
 
 void bio::Reaction::set_reversible(bool reversible)

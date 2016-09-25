@@ -10,12 +10,31 @@ using std::pair;
 
 namespace bio
 {
+class Metabolite
+{
+public:
+  Metabolite();
+  Metabolite(long id, string entry);
+  long id;
+  string entry;
+
+  friend ostream& operator<<(ostream& os, const Metabolite& cpd)
+  {
+    os << "cpd[" << cpd.id << "]" << cpd.entry ;
+    return os;
+  }
+
+};
 
 class Reaction
 {
   public:
     Reaction();
     Reaction(long id, string entry);
+
+    long id;
+    string entry;
+
     void set_reversible(bool reversible);
     bool is_reversible();
     void add_lhs_stoichiometry(long cpd_id, double value);
@@ -52,8 +71,7 @@ class Reaction
     }
     //friend ostream& operator<< (ostream& stream, const Reaction& rxn);
   private:
-    long id_;
-    string entry_;
+
     bool reversible_;
     vector<pair<long, double>> lhs_;
     vector<pair<long, double>> rhs_;

@@ -2,7 +2,113 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+
 #include "io.h"
+vector<string> io::split(string str, char delimiter)
+{
+  vector<string> tokens;
+  std::string token;
+  std::istringstream iss(str);
+  while (std::getline(iss, token, delimiter)) {
+    tokens.push_back(token);
+  }
+
+  return tokens;
+}
+
+void io::ReadProblemFile(const string path, set<long>* substrates)
+{
+  std::cout << "ReadProblemFile " << path  << std::endl;
+  std::fstream fs;
+  string line;
+  fs.open(path, ios::in);
+  if (fs.is_open())
+  {
+    getline(fs, line, '\n');
+    //cout << "HEADER " << line << endl;
+    while (getline(fs, line, '\n'))
+    {
+      //cout << "REST: " << line << endl;
+      std::istringstream iss(line);
+      /*
+      string target;
+      iss >> target;
+      string model;
+      iss >> model;
+      
+      */
+      //
+      string target;
+      std::getline(iss, target, '\t');
+      string model;
+      std::getline(iss, model, '\t');
+      //std::cout << target << " >> " << model << std::endl;
+      string subs;
+      std::getline(iss, subs, '\t');
+      string spis;
+      std::getline(iss, spis, '\t');
+      string smap;
+      std::getline(iss, smap, '\t');
+      for (auto e : split(subs, ' ')) {
+        //std::cout << "\t" << e << std::endl;
+        substrates->insert(atol(e.c_str()));
+      }
+      //std::cout << subs << std::endl;
+    }
+  }
+  else {
+    cout << ":(" << endl;
+  }
+  fs.close();
+}
+
+void io::ReadSolutionFile(const string path, set<string>* reactions, map<long, set<string>>* solutions, map<string, set<long>>* targetToSolutions)
+{
+  std::cout << "ReadSolutionFile" << path << std::endl;
+  std::fstream fs;
+  string line;
+  string word;
+  fs.open(path, ios::in);
+  if (fs.is_open())
+  {
+    getline(fs, line, '\n');
+    //cout << "HEADER " << line << endl;
+    //std::istringstream iss(line);
+    //iss >> word;
+    //std::cout << word;
+    
+    while (getline(fs, line, '\n'))
+    {
+      //cout << "REST: " << line << endl;
+      std::istringstream iss(line);
+      string target;
+      iss >> target;
+      if (targetToSolutions->find(target) == targetToSolutions->end()) {
+        targetToSolutions->insert({target, set<long>()});
+      }
+      string model;
+      iss >> model;
+      string solId;
+      iss >> solId;
+      set<string> solution;
+      while (!iss.eof())
+      {
+        iss >> word;
+        //cout << "\t" << word << endl;
+        solution.insert(word);
+        reactions->insert(word);
+      }
+      long solId_ = atol(solId.c_str());
+      solutions->insert({ solId_, solution });
+      targetToSolutions->find(target)->second.insert(solId_);
+      //cout << "-------------------------" << endl;
+    }
+  }
+  else {
+    cout << "error open file " << path << endl;
+  }
+  fs.close();
+}
 
 model::StoichiometricModel* io::ReadMatrixFile2(const string path)
 {
@@ -93,6 +199,8 @@ model::StoichiometricModel* io::ReadMatrixFile2(const string path)
 
   return sm;
 }
+
+
 
 void io::ReadMatrixFile(const string path, Matrix* matrix, vector<int> rev,
                         vector<double>* lb, vector<double>* ub,

@@ -1,4 +1,12 @@
 /* short.c */
+
+#ifdef _MSC_VER
+//stupid warning ...  
+//http://stackoverflow.com/questions/6880045/how-can-i-work-around-visual-c-2005s-decorated-name-length-exceeded-name-wa
+#pragma warning(disable : 4503)  
+#endif
+
+#include <algorithm>
 #include <iostream>
 #include <vector>
 #include <stdio.h>            /* C input/output                       */
@@ -13,6 +21,8 @@
 #include "model/stoichiometric_model.h"
 #include "model/fba_adapter.h"
 #include "biodb_service.h"
+
+
 
 using namespace std;
 
@@ -235,7 +245,7 @@ optimization::GlpkLp* makeGlpLp(vector<bio::Reaction> rxnList,
   for (auto &e : cpdSet)
   {
     cpdArray.insert({ e, k++ });
-    cout << k << ": " << e << endl;
+    //cout << k << ": " << e << endl;
   }
   cout << "makeGlpLp - Metabolites: " << r << endl;
 
@@ -278,11 +288,11 @@ optimization::GlpkLp* makeGlpLp(vector<bio::Reaction> rxnList,
     lp->set_row_bound(i, Op::EQUAL, 0);
     for (int j = 0; j < c; j++)
     {
-      cout << M[i][j] << " ";
+      //cout << M[i][j] << " ";
       lp->set_matrix_value(i, j, M[i][j]);
       
     }
-    cout << endl;
+    //cout << endl;
   }
   lp->load_matrix();
 
@@ -579,61 +589,450 @@ void matrix(int r, int c, const double m[][2])
   }
 }
 
+int testRead(int argc, char** argv)
+{
+  set<long> substrates;
+  io::ReadProblemFile("D:/tmp/example_config.tsv", &substrates);
+  return 0;
+}
+
+class Awesomeness
+{
+public:
+  set<long> cpdIds;
+  map<int, string> cpd_names;
+  map<string, string> cpdOriginal_to_alias;
+  map<string, string> rxnOriginal_to_alias;
+  map<string, string> rxnOriginal_to_rev;
+  map<string, string> rxn_rev_alias;
+  map<string, string> rxn_alias_orig;
+  vector<bio::Reaction> rxnList;
+  set<string> rxn_;
+  vector<string> rxn_names;
+  set<long> nonnative;
+  optimization::GlpkLp* lp;
+  
+  void registerReaction(bio::Reaction rxn)
+  {
+    string rxnEntry = rxn.entry;
+    string rxnO = rxn.entry;
+    std::replace(rxnO.begin(), rxnO.end(), ':', '_');
+    std::replace(rxnO.begin(), rxnO.end(), '-', '_');
+    rxnOriginal_to_alias[rxnEntry] = rxnO;
+    rxnList.push_back(rxn);
+    rxn_names.push_back(rxnO);
+    rxn_.insert(rxnO);
+    bio::Reaction rxn_rev(-1, rxnO + "_rev");
+    for (auto e : rxn.get_lhs_stoichiometry())
+    {
+      cpdIds.insert(e.first);
+      rxn_rev.add_rhs_stoichiometry(e.first, e.second);
+    }
+    for (auto e : rxn.get_rhs_stoichiometry())
+    {
+      cpdIds.insert(e.first);
+      rxn_rev.add_lhs_stoichiometry(e.first, e.second);
+    }
+
+    rxnList.push_back(rxn_rev);
+    rxn_names.push_back(rxn_rev.entry);
+    rxnOriginal_to_rev[rxnO] = rxn_rev.entry;
+    std::cout << "added reaction " << rxn.entry << " -> " << rxnO << " >> " << rxnOriginal_to_rev[rxnO] << " total: " << rxnList.size() << std::endl;
+  }
+
+  void registerMetabolite(bio::Metabolite cpd)
+  {
+    //std::cout << cpd << std::endl;
+    if (cpdIds.find(cpd.id) != cpdIds.end())
+    {
+      string cpdEntry = cpd.entry;
+      string cpdO = cpd.entry;
+      std::replace(cpdO.begin(), cpdO.end(), ':', '_');
+      std::replace(cpdO.begin(), cpdO.end(), '-', '_');
+      cpdOriginal_to_alias.insert({ cpdEntry, cpdO });
+      
+      bio::Reaction d;
+      d.add_rhs_stoichiometry(cpd.id, 1.0);
+      rxnList.push_back(d);
+      std::ostringstream ss;
+      ss << cpdO;
+      std::string entry = ss.str();
+      rxn_names.push_back(entry);
+
+      cpd_names.insert({ cpd.id, cpdO });
+
+      std::cout << "added metabolite " << cpd.entry << " -> " << cpdO << " total: " << cpd_names.size() << "/" <<cpdIds.size() << std::endl;
+    }
+    else
+    {
+      std::cerr << "metabolite not fond " << cpd.id << std::endl;
+    }
+
+  }
+
+  void build(set<long> substrates)
+  {
+    if (rxnList.size() == 0) {
+      std::cout << "empty network" << std::endl;
+      return;
+    }
+
+    for (auto e : rxnOriginal_to_alias)
+    {
+      string entry = e.first;
+      string alias = e.second;
+      string rev = rxnOriginal_to_rev[alias];
+      rxn_rev_alias[rev] = alias;
+      rxn_alias_orig[alias] = entry;
+    }
+
+    lp = makeGlpLp(rxnList, cpd_names, rxn_names);
+    lp->set_obj_dir(Op::MIN);
+    for (auto rxnId : rxn_) {
+      {
+        lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnId), Op::GE, 1000);
+        lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnOriginal_to_rev[rxnId]), Op::GE, 1000);
+      }
+    }
+
+    std::cout << "open substrates" << std::endl;
+    for (auto cpdId : substrates) {
+      if (cpd_names.find(cpdId) != cpd_names.end())
+      {
+        std::cout << cpd_names[cpdId] << std::endl;
+        lp->set_col_bound(-1000, Op::GE, lp->get_col_index(cpd_names[cpdId]), Op::GE, 1000);
+      }
+    }
+
+    std::cout << "find non native substrates" << std::endl;
+    for (auto cpdId : cpdIds)
+    {
+      if (substrates.find(cpdId) == substrates.end())
+      {
+        nonnative.insert(cpdId);
+      }
+    }
+
+    std::cout << "flush non native substrates" << std::endl;
+    for (auto cpdId : nonnative) {
+      std::cout << cpd_names[cpdId] << std::endl;
+      lp->set_col_bound(0, Op::GE, lp->get_col_index(cpd_names[cpdId]), Op::GE, 1000);
+    }
+
+    //lp->write_lp("D:/tmp/lp_par_temp_zero.txt");
+  }
+
+  void batch(string target, set<long> sols, map<long, set<string>> solutionMap)
+  {
+    set<set<string>> sol;
+    /*string target = t.first;
+    if (sol.find(t.first) == sol.end())
+    {
+      sol.insert({ t.first, set<set<string>>() });
+    }*/
+    map<double, set<string>> revmap;
+    revmap.insert({ -1, set<string>() });
+    revmap.insert({  1, set<string>() });
+    lp->set_col_bound(1, Op::GE, lp->get_col_index(cpdOriginal_to_alias[target]), Op::GE, 1);
+    std::cout << target << std::endl;
+    for (auto e : sols)
+    {
+      set<string> s = solutionMap[e];
+      if (sol.find(s) == sol.end()) {
+        //shudown all
+        for (auto rxnId : rxn_) {
+          {
+            lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnId), Op::GE, 0);
+            lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnOriginal_to_rev[rxnId]), Op::GE, 0);
+          }
+        }
+
+        
+        for (auto rxnEntry : s) {
+          string rxnAlias = rxnOriginal_to_alias[rxnEntry];
+          string rxnAliasR = rxnOriginal_to_rev[rxnAlias];
+          lp->set_obj_coef(lp->get_col_index(rxnAlias), 1.0);
+          lp->set_obj_coef(lp->get_col_index(rxnAliasR), 1.0);
+          lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnAlias), Op::GE, 1000);
+          lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnAliasR), Op::GE, 1000);
+          //std::cout << " " << rxnEntry;
+        }
+        //std::cout << std::endl;
+        sol.insert(s);
+        //lp->write_lp("D:/tmp/lp_par_temp.txt");
+        double obj = lp->solve();
+        //std::cout << "Objective: " << obj << std::endl;
+        for (int i = 0; i < lp->get_cols(); i++)
+        {
+          double v = lp->get_col_prim(i);
+          if (v != 0.0)
+          {
+            string rxn_maybe_rev = rxn_names[i];
+            string alias = rxn_maybe_rev;
+            string rxnEntry = "";
+            bool lr = true;
+            if (rxn_rev_alias.find(rxn_maybe_rev) != rxn_rev_alias.end())
+            {
+              alias = rxn_rev_alias[rxn_maybe_rev];
+              lr = false;
+            }
+            if (rxn_alias_orig.find(alias) != rxn_alias_orig.end())
+            {
+              rxnEntry = rxn_alias_orig[alias];
+            }
+            else
+            {
+              //std::cout << ":(" << alias << std::endl;
+            }
+            
+
+            if (rxnEntry.size() > 0)
+            {
+              //std::cout << "[" << rxnEntry << "]" << rxn_names[i] << std::endl;
+              if (lr)
+              {
+                revmap[-1].insert(rxnEntry);
+              }
+              else
+              {
+                revmap[1].insert(rxnEntry);
+              }
+              //std::cout << rxnEntry << " >> " << rxn_names[i] << ": " << v << std::endl;
+            }
+            //else is drain !?
+            
+          }
+        }
+        
+        for (auto rxnEntry : s) {
+          string rxnAlias = rxnOriginal_to_alias[rxnEntry];
+          string rxnAliasR = rxnOriginal_to_rev[rxnAlias];
+          lp->set_obj_coef(lp->get_col_index(rxnAlias), 0);
+          lp->set_obj_coef(lp->get_col_index(rxnAliasR), 0);
+          //lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnAlias), Op::GE, 1000);
+          //lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnAliasR), Op::GE, 1000);
+          //std::cout << " " << rxnEntry;
+        }
+
+      }
+      
+    }
+    
+    lp->set_obj_coef(lp->get_col_index(cpdOriginal_to_alias[target]), 0);
+    lp->set_col_bound(0, Op::GE, lp->get_col_index(cpdOriginal_to_alias[target]), Op::GE, 1000);
+
+    for (auto e : revmap[-1])
+    {
+      std::cout << e << "\tRL" <<std::endl;
+    }
+    for (auto e : revmap[1])
+    {
+      std::cout << e << "\tLR" << std::endl;
+    }
+  }
+};
 
 int main(int argc, char** argv)
 {
+  //string solFile = "D:/tmp/demo_solutions.tsv";
+  //string cfgFile = "D:/tmp/demo_config.tsv";
+  string solFile = "D:/tmp/synth/b.tsv";
+  string cfgFile = "D:/tmp/synth/a.tsv";
+  glp_term_out(GLP_OFF);
+  Awesomeness aa;
   //biodb::wut("D:/tmp/biodb_pyk.json");
+  map<long, set<string>> solutions;
+  //set<string> rxn_;
+  set<string> hnet;
+  map<string, set<long>> targetToSolutions;
+  io::ReadSolutionFile(solFile, &hnet, &solutions, &targetToSolutions);
+  set<long> substrates;
+  //set<long> nonnative;
+  io::ReadProblemFile(cfgFile, &substrates);
+  
+  /*
+  hnet.insert("R00200");
+  hnet.insert("R00658");
+  hnet.insert("R00431");
+  hnet.insert("R01518");
+  */
+  for (auto e : hnet) {
+    std::cout << e << std::endl;
+  }
+  
   
   biodb::BiodbService service;
-  service.getReaction(10);
-  service.getReaction("LigandReaction", "R00200");
+
+  //vector<bio::Reaction> rxnList;
+  //map<int, string> cpd_names;
+  //vector<string> rxn_names;
+  //map<string, string> cpdOriginal_to_alias;
+  //map<string, string> rxnOriginal_to_alias;
+  //set<long> cpdIds;
+  std::cout << "loading reactions" << std::endl;
+  for (auto rxnEntry : hnet) {
+    //bio::Reaction rxn1 = service.getReaction("LigandReaction", "R00200");
+    bio::Reaction rxn = service.getReaction("MetaCyc", rxnEntry);
+    if (rxn.entry.size() == 0) {
+      std::cout << "reaction " << rxnEntry << " not found" << endl;
+    }
+    else {
+      aa.registerReaction(rxn);
+      /*
+      string rxnEntry = rxn.entry;
+      std::replace(rxn.entry.begin(), rxn.entry.end(), ':', '_');
+      std::replace(rxn.entry.begin(), rxn.entry.end(), '-', '_');
+      rxnOriginal_to_alias[rxnEntry] = rxn.entry;
+      rxnList.push_back(rxn);
+      rxn_.insert(rxn.entry);
+      rxn_names.push_back(rxn.entry);
+      for (auto p : rxn.get_lhs_stoichiometry()) {
+        cpdIds.insert(p.first);
+      }
+      for (auto p : rxn.get_rhs_stoichiometry()) {
+        cpdIds.insert(p.first);
+      }
+      */
+    }
+
+  }
+  //service.getReaction(10);
+  std::cout << "loading metabolites" << std::endl;
+  for (auto cpdId : aa.cpdIds) {
+
+    bio::Metabolite cpd = service.getMetabolite("*", cpdId);
+    aa.registerMetabolite(cpd);
+    /*
+    if (substrates.find(cpdId) == substrates.end()) {
+    nonnative.insert(cpdId);
+    }
+    string cpdEntry = cpd.entry;
+    std::replace(cpd.entry.begin(), cpd.entry.end(), ':', '_');
+    std::replace(cpd.entry.begin(), cpd.entry.end(), '-', '_');
+    cpdOriginal_to_alias.insert({ cpdEntry, cpd.entry });
+    std::cout << cpd << std::endl;
+    bio::Reaction d;
+    d.add_rhs_stoichiometry(cpdId, 1.0);
+    rxnList.push_back(d);
+    std::ostringstream ss;
+    ss << cpd.entry;
+    std::string entry = ss.str();
+    rxn_names.push_back(entry);
+
+    cpd_names.insert({ cpdId, cpd.entry });
+    */
+  }
+  
   /*
-  //glp_term_out(GLP_OFF);
-  vector<bio::Reaction> rxnList;
-  map<int, string> cpd_names;
-  vector<string> rxn_names;
   bio::Reaction rxn1;
   rxn1.add_lhs_stoichiometry(58310, 1.0); //C00002
   rxn1.add_lhs_stoichiometry(370761, 1.0); //C00022
   rxn1.add_rhs_stoichiometry(1086446, 1.0); //C00008
   rxn1.add_rhs_stoichiometry(259799, 1.0); //C00074
-  
-
-  bio::Reaction d1;
-  d1.add_lhs_stoichiometry(58310, 1.0); //C00002
-  bio::Reaction d2;
-  d2.add_lhs_stoichiometry(370761, 1.0); //C00002
-  bio::Reaction d3;
-  d3.add_lhs_stoichiometry(1086446, 1.0); //C00002
-  bio::Reaction d4;
-  d4.add_lhs_stoichiometry(259799, 1.0); //C00002
-
-  rxnList.push_back(rxn1);
   rxnList.push_back(d1);
   rxnList.push_back(d2);
   rxnList.push_back(d3);
   rxnList.push_back(d4);
-  rxn_names.push_back("R00200");
-  rxn_names.push_back("D1");
-  rxn_names.push_back("D2");
-  rxn_names.push_back("D3");
-  rxn_names.push_back("D4");
-  cpd_names.insert({ 58310, "C00002" });
+
   cpd_names.insert({ 370761, "C00022" });
   cpd_names.insert({ 1086446, "C00008" });
   cpd_names.insert({ 259799, "C00074" });
-  optimization::GlpkLp* lp = makeGlpLp(rxnList, cpd_names, rxn_names);
-  lp->set_col_bound(1, Op::EQUAL, lp->get_col_index("R00200"), Op::EQUAL, 1);
-  lp->set_col_bound(-10, Op::GE, lp->get_col_index("D1"), Op::GE, 10);
-  lp->set_col_bound(-10, Op::GE, lp->get_col_index("D2"), Op::GE, 10);
-  lp->set_col_bound(-10, Op::GE, lp->get_col_index("D3"), Op::GE, 10);
-  lp->set_col_bound(-10, Op::GE, lp->get_col_index("D4"), Op::GE, 10);
-  lp->write_lp("D:/lp_temp.txt");
-  
-  lp->solve();
-
-  delete lp;
   */
+
+  
+  aa.build(substrates);
+  /*
+  if (rxnList.size() == 0) {
+    std::cout << "empty network" << std::endl;
+    return 1;
+  }
+  */
+  /*
+  optimization::GlpkLp* lp = makeGlpLp(rxnList, cpd_names, rxn_names);
+  lp->set_obj_dir(Op::MIN);
+  //lp->set_col_bound(1, Op::EQUAL, lp->get_col_index("R00200"), Op::EQUAL, 1);
+  
+  for (auto rxnId : rxn_) {
+    {
+      lp->set_col_bound(-1000, Op::GE, lp->get_col_index(rxnId), Op::GE, 1000);
+    }
+  }
+  std::cout << "open substrates" << std::endl;
+  for (auto cpdId : substrates) {
+    if (cpd_names.find(cpdId) != cpd_names.end())
+    {
+      std::cout << cpd_names[cpdId] << std::endl;
+      lp->set_col_bound(-1000, Op::GE, lp->get_col_index(cpd_names[cpdId]), Op::GE, 1000);
+    }
+  }
+  std::cout << "flush non native substrates" << std::endl;
+  for (auto cpdId : nonnative) {
+    std::cout << cpd_names[cpdId] << std::endl;
+    lp->set_col_bound(0, Op::GE, lp->get_col_index(cpd_names[cpdId]), Op::GE, 1000);
+  }
+  //set internal as flush
+  map<string, set<set<string>>> sol;
+  */
+  for (auto t : targetToSolutions)
+  {
+    aa.batch(t.first, t.second, solutions);
+    /*
+    string target = t.first;
+    if (sol.find(t.first) == sol.end())
+    {
+      sol.insert({t.first, set<set<string>>()});
+    }
+    lp->set_obj_coef(lp->get_col_index(cpdOriginal_to_alias[target]), 1.0);
+    lp->set_col_bound(1, Op::GE, lp->get_col_index(cpdOriginal_to_alias[target]), Op::GE, 1);
+    std::cout << t.first << std::endl;
+    for (auto e : t.second)
+    {
+      set<string> s = solutions[e];
+      if (sol[target].find(s) == sol[target].end()) {
+        //shudown all
+        for (auto rxnId : rxn_) {
+          {
+            lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnId), Op::GE, 0);
+          }
+        }
+        for (auto rxnEntry : s) {
+          lp->set_col_bound(-1000, Op::GE, lp->get_col_index(rxnOriginal_to_alias[rxnEntry]), Op::GE, 1000);
+          std::cout << " " << rxnEntry;
+        }
+        std::cout << std::endl;
+        sol[target].insert(s);
+        double obj = lp->solve();
+        std::cout << "Objective: " << obj << std::endl;
+        for (int i = 0; i < lp->get_cols(); i++)
+        {
+          double v = lp->get_col_prim(i);
+          if (v != 0.0)
+          {
+            std::cout << rxn_names[i] << ": " << v << std::endl;
+          }
+        }
+        
+      }
+      
+    }
+    lp->write_lp("D:/lp_temp.txt");
+    lp->set_obj_coef(lp->get_col_index(cpdOriginal_to_alias[target]), 0);
+    lp->set_col_bound(0, Op::GE, lp->get_col_index(cpdOriginal_to_alias[target]), Op::GE, 1000);
+    */
+  }
+  
+  /*
+  lp->set_col_bound(-10, Op::GE, lp->get_col_index("C00002"), Op::GE, 10);
+  lp->set_col_bound(-10, Op::GE, lp->get_col_index("C00022"), Op::GE, 10);
+  lp->set_col_bound(-10, Op::GE, lp->get_col_index("C00074"), Op::GE, 10);
+  lp->set_col_bound(-10, Op::GE, lp->get_col_index("C00008"), Op::GE, 10);
+  */
+  
+  
+  
+
+  //delete lp;
+  
   return 0;
 }
 
