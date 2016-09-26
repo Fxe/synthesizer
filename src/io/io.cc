@@ -4,6 +4,10 @@
 #include <string>
 
 #include "io.h"
+
+using std::cout;
+using std::getline;
+
 vector<string> io::split(string str, char delimiter)
 {
   vector<string> tokens;
@@ -69,16 +73,22 @@ void io::ReadSolutionFile(const string path, set<string>* reactions, map<long, s
   string line;
   string word;
   fs.open(path, ios::in);
+  int l = 0;
   if (fs.is_open())
   {
-    getline(fs, line, '\n');
+    std::getline(fs, line, '\n');
     //cout << "HEADER " << line << endl;
     //std::istringstream iss(line);
     //iss >> word;
     //std::cout << word;
-    
-    while (getline(fs, line, '\n'))
+    l++;
+    while (std::getline(fs, line, '\n'))
     {
+      l++;
+      if (!(l % 1000))
+      {
+        std::cout << "line: " << l << std::endl;
+      }
       //cout << "REST: " << line << endl;
       std::istringstream iss(line);
       string target;
@@ -105,7 +115,7 @@ void io::ReadSolutionFile(const string path, set<string>* reactions, map<long, s
     }
   }
   else {
-    cout << "error open file " << path << endl;
+    std::cout << "error open file " << path << endl;
   }
   fs.close();
 }
@@ -300,20 +310,20 @@ void io::read_matrix_file(const string path,
   if (fs.is_open())
   {
     //read rows cols
-    getline(fs, line, '\n');
+    std::getline(fs, line, '\n');
     std::istringstream iss(line);
     iss >> word;
     *rows = atoi(word.c_str());
     iss >> word;
     *cols = atoi(word.c_str());
-    cout << *rows << "x" << *cols << endl;
+    std::cout << *rows << "x" << *cols << endl;
     //read reaction line
-    getline(fs, line, '\n');
+    std::getline(fs, line, '\n');
     iss.clear();
     iss.str(line);
-    cout << line << endl;
+    std::cout << line << endl;
     //skip first column
-    getline(iss, line, '\t');
+    std::getline(iss, line, '\t');
     while (!iss.eof())
     {
       iss >> word;
@@ -386,4 +396,54 @@ void io::WriteFile(string str, string path)
   fs << str;
   fs.close();
   
+}
+
+void io::WriteNetMap(map<map<long, double>, set<long>> netMap, string path)
+{
+  std::fstream fs;
+  fs.open(path, ios::out);
+  std::cout << path << std::endl;
+  if (fs.is_open())
+  {
+    fs << "net\tsolutions";
+    for (auto e : netMap)
+    {
+      map<long, double> s = e.first;
+      fs << "\n" << stoichToString(s) << "\t" << toString(e.second);
+    }
+    fs.close();
+  }
+  else
+  {
+    std::cerr << "error open file (write) " << path << std::endl;
+  }
+  
+}
+
+string io::stoichToString(map<long, double> stoich)
+{
+  std::ostringstream ss;
+  for (auto e : stoich)
+  {
+    double v = e.second;
+    if (v < 0.0)
+    {
+      ss << v << " " << e.first << " ";
+    }
+    
+    //double v = e,
+    //if ()
+    //ss << e << " ";
+  }
+  ss << "<=>";
+  for (auto e : stoich)
+  {
+    double v = e.second;
+    if (v > 0.0)
+    {
+      ss << " " << v << " " << e.first;
+    }
+  }
+
+  return ss.str();
 }

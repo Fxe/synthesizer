@@ -31,6 +31,21 @@ bool bio::Reaction::is_reversible()
   return this->reversible_;
 }
 
+void bio::Reaction::set_stoichiometry(map<long, double> s)
+{
+  for (auto p : s)
+  {
+    if (p.second < 0.0)
+    {
+      this->add_lhs_stoichiometry(p.first, p.second);
+    }
+    else if (p.second > 0.0)
+    {
+      this->add_rhs_stoichiometry(p.first, p.second);
+    }
+  }
+}
+
 void bio::Reaction::add_lhs_stoichiometry(long cpd_id, double value)
 {
   pair<int, double> s(cpd_id, value);

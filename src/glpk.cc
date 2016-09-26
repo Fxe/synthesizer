@@ -13,6 +13,7 @@
 #include <stdlib.h>           /* C standard library                   */
 #include <glpk.h>             /* GNU GLPK linear/mixed integer solver */
 #include <sstream>
+#include <unordered_map>
 #include "io/io.h"
 #include "optmization/glpk_lp.h"
 #include "optmization/model_glpk.h"
@@ -606,6 +607,7 @@ public:
   map<string, string> rxnOriginal_to_rev;
   map<string, string> rxn_rev_alias;
   map<string, string> rxn_alias_orig;
+  map<int, long> drainIndexToCpd;
   vector<bio::Reaction> rxnList;
   set<string> rxn_;
   vector<string> rxn_names;
@@ -653,6 +655,7 @@ public:
       
       bio::Reaction d;
       d.add_rhs_stoichiometry(cpd.id, 1.0);
+      drainIndexToCpd[(int) rxnList.size()] = cpd.id;
       rxnList.push_back(d);
       std::ostringstream ss;
       ss << cpdO;
@@ -722,8 +725,9 @@ public:
     //lp->write_lp("D:/tmp/lp_par_temp_zero.txt");
   }
 
-  void batch(string target, set<long> sols, map<long, set<string>> solutionMap)
+  map<map<long, double>, set<long>> batch(string target, set<long> sols, map<long, set<string>> solutionMap)
   {
+    map<map<long, double>, set<long>> netMap;
     set<set<string>> sol;
     /*string target = t.first;
     if (sol.find(t.first) == sol.end())
@@ -760,7 +764,9 @@ public:
         //std::cout << std::endl;
         sol.insert(s);
         //lp->write_lp("D:/tmp/lp_par_temp.txt");
+        //std::cout << "solve ..." << std::endl;
         double obj = lp->solve();
+        map<long, double> net;
         //std::cout << "Objective: " << obj << std::endl;
         for (int i = 0; i < lp->get_cols(); i++)
         {
@@ -782,7 +788,7 @@ public:
             }
             else
             {
-              //std::cout << ":(" << alias << std::endl;
+              net[drainIndexToCpd[i]] = v;
             }
             
 
@@ -803,6 +809,12 @@ public:
             
           }
         }
+
+        if (netMap.find(net) == netMap.end())
+        {
+          netMap.insert({ net, set<long>() });
+        }
+        netMap[net].insert(e);
         
         for (auto rxnEntry : s) {
           string rxnAlias = rxnOriginal_to_alias[rxnEntry];
@@ -829,15 +841,116 @@ public:
     {
       std::cout << e << "\tLR" << std::endl;
     }
+
+    return netMap;
   }
 };
 
+bio::Reaction getReaction(biodb::BiodbService service, string db, string rxnEntry)
+{
+  bio::Reaction rxn = service.getReaction(db, rxnEntry);
+  if (rxn.entry.size() == 0)
+  {
+    //try check if fold
+    vector<string> s = io::split(rxnEntry, '_');
+    if (s.size() >= 3) {
+      string fold1 = s[s.size() - 2];
+      string fold2 = s[s.size() - 1];
+      string rxnEntryOriginal = rxnEntry.substr(0, rxnEntry.size() - fold1.size() - fold2.size() - 2);
+      //std::cout << "reaction " << rxnEntry << " maybe fold?" << rxnEntryOriginal << " folded -> " << fold1 << " ### " << fold2 << endl;
+      bio::Reaction frxn = service.getReaction(db, rxnEntryOriginal);
+      if (frxn.entry.size() == 0)
+      {
+        std::cout << "reaction " << rxnEntry << " not found with fold atempt: " << rxnEntryOriginal << endl;
+      }
+      else
+      {
+        rxn = frxn;
+      }
+    }
+    else
+    {
+      std::cout << "reaction " << rxnEntry << " not found" << endl;
+    }
+
+  }
+  return rxn;
+}
+
+void testLoadReactions()
+{
+  biodb::BiodbService service;
+  set<string> hnet;
+  hnet.insert("R00200");
+  hnet.insert("META:RXN-12411");
+  hnet.insert("META:RXN-12411_1563457_1610842");
+  std::cout << "loading reactions" << std::endl;
+  string db = "MetaCyc";
+  for (auto rxnEntry : hnet) {
+    bio::Reaction rxn = getReaction(service, db, rxnEntry);
+    if (rxn.entry.size() != 0)
+    {
+      std::cout << rxn << std::endl;
+    }
+  }
+//META:RXN-12411_1563457_1610842
+}
+
+void testSomeMaps(int argc, char** argv)
+{
+  map<map<long, double>, set<long>> netMap;
+  map<long, double> net1;
+  net1.insert({ 1, -1 });
+  net1.insert({ 2, -1 });
+  net1.insert({ 3,  1 });
+  net1.insert({ 4,  1 });
+  map<long, double> net2;
+  net2.insert({ 4,  1 });
+  net2.insert({ 1, -1 });
+  net2.insert({ 3,  1 });
+  net2.insert({ 2, -1 });
+  map<long, double> net3;
+  net3.insert({ 1,  1 });
+  net3.insert({ 2,  1 });
+  net3.insert({ 3, -1 });
+  net3.insert({ 4, -1 });
+
+  if (netMap.find(net1) != netMap.end())
+  {
+    netMap.insert({ net1, set<long>() });
+  }
+  netMap[net1].insert(1000);
+
+  if (netMap.find(net2) != netMap.end())
+  {
+    netMap.insert({ net2, set<long>() });
+  }
+  netMap[net2].insert(1050);
+
+  if (netMap.find(net3) != netMap.end())
+  {
+    netMap.insert({ net3, set<long>() });
+  }
+  netMap[net3].insert(1100);
+
+  for (auto e : netMap)
+  {
+    bio::Reaction rxn;
+    
+    map<long, double> net = e.first;
+    rxn.set_stoichiometry(net);
+    set<long> sols = e.second;
+    cout << rxn << " " << io::toString(sols) << std::endl;
+    
+  }
+}
+
 int main(int argc, char** argv)
 {
-  //string solFile = "D:/tmp/demo_solutions.tsv";
-  //string cfgFile = "D:/tmp/demo_config.tsv";
-  string solFile = "D:/tmp/synth/b.tsv";
-  string cfgFile = "D:/tmp/synth/a.tsv";
+  string solFile = "D:/tmp/demo_solutions.tsv";
+  string cfgFile = "D:/tmp/demo_config.tsv";
+  //string solFile = "D:/tmp/synth/b.tsv";
+  //string cfgFile = "D:/tmp/synth/a.tsv";
   glp_term_out(GLP_OFF);
   Awesomeness aa;
   //biodb::wut("D:/tmp/biodb_pyk.json");
@@ -860,41 +973,15 @@ int main(int argc, char** argv)
     std::cout << e << std::endl;
   }
   
-  
   biodb::BiodbService service;
 
-  //vector<bio::Reaction> rxnList;
-  //map<int, string> cpd_names;
-  //vector<string> rxn_names;
-  //map<string, string> cpdOriginal_to_alias;
-  //map<string, string> rxnOriginal_to_alias;
-  //set<long> cpdIds;
   std::cout << "loading reactions" << std::endl;
   for (auto rxnEntry : hnet) {
     //bio::Reaction rxn1 = service.getReaction("LigandReaction", "R00200");
-    bio::Reaction rxn = service.getReaction("MetaCyc", rxnEntry);
-    if (rxn.entry.size() == 0) {
-      std::cout << "reaction " << rxnEntry << " not found" << endl;
-    }
-    else {
+    bio::Reaction rxn = getReaction(service, "MetaCyc", rxnEntry);
+    if (rxn.entry.size() != 0) {
       aa.registerReaction(rxn);
-      /*
-      string rxnEntry = rxn.entry;
-      std::replace(rxn.entry.begin(), rxn.entry.end(), ':', '_');
-      std::replace(rxn.entry.begin(), rxn.entry.end(), '-', '_');
-      rxnOriginal_to_alias[rxnEntry] = rxn.entry;
-      rxnList.push_back(rxn);
-      rxn_.insert(rxn.entry);
-      rxn_names.push_back(rxn.entry);
-      for (auto p : rxn.get_lhs_stoichiometry()) {
-        cpdIds.insert(p.first);
-      }
-      for (auto p : rxn.get_rhs_stoichiometry()) {
-        cpdIds.insert(p.first);
-      }
-      */
     }
-
   }
   //service.getReaction(10);
   std::cout << "loading metabolites" << std::endl;
@@ -975,8 +1062,22 @@ int main(int argc, char** argv)
   */
   for (auto t : targetToSolutions)
   {
-    aa.batch(t.first, t.second, solutions);
+    string target = t.first;
+    std::replace(target.begin(), target.end(), ':', '_');
+    std::replace(target.begin(), target.end(), '-', '_');
+    map<map<long, double>, set<long>> netMap = aa.batch(t.first, t.second, solutions);
+    string path = "/nnet_" + target + ".tsv";
+    io::WriteNetMap(netMap, path);
     /*
+    for (auto e : netMap)
+    {
+      bio::Reaction rxn;
+      map<long, double> net = e.first;
+      rxn.set_stoichiometry(net);
+      set<long> sols = e.second;
+      cout << rxn << " " << io::toString(sols) << std::endl;
+    }
+    
     string target = t.first;
     if (sol.find(t.first) == sol.end())
     {

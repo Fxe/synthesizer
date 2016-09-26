@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <map>
 
 using namespace std;
 using std::vector;
@@ -37,6 +38,7 @@ class Reaction
 
     void set_reversible(bool reversible);
     bool is_reversible();
+    void set_stoichiometry(map<long, double> s);
     void add_lhs_stoichiometry(long cpd_id, double value);
     void add_rhs_stoichiometry(long cpd_id, double value);
     vector<pair<long, double>> get_lhs_stoichiometry();

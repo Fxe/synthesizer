@@ -30,6 +30,23 @@ namespace io
                         vector<string>* cpd_alias);
 
   void WriteFile(string str, string path);
+
+  void WriteNetMap(map<map<long, double>, set<long>> netMap, string path);
+
+  template<class T>
+  string toString(set<T> set)
+  {
+    std::ostringstream ss;
+    for (auto e : set)
+    {
+      ss << e << " ";
+    }
+
+    return ss.str();
+  }
+
+  //template<class T>
+  string stoichToString(map<long, double> stoich);
 } //namespace io
 
 #endif // SYNTHESIZER_IO
