@@ -597,6 +597,17 @@ int testRead(int argc, char** argv)
   return 0;
 }
 
+const double EPSILON = 1e-9;
+
+bool __inline isEqual(double a, double b)
+{
+  if (abs(a - b) < EPSILON) {
+    return false;
+  }
+
+  return true;
+}
+
 class Awesomeness
 {
 public:
@@ -771,7 +782,8 @@ public:
         for (int i = 0; i < lp->get_cols(); i++)
         {
           double v = lp->get_col_prim(i);
-          if (v != 0.0)
+          if (isEqual(v, 0.0))
+          //if (v != 0.0)
           {
             string rxn_maybe_rev = rxn_names[i];
             string alias = rxn_maybe_rev;
@@ -947,8 +959,13 @@ void testSomeMaps(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
-  string solFile = "D:/tmp/demo_solutions.tsv";
-  string cfgFile = "D:/tmp/demo_config.tsv";
+  //D:/tmp/synth
+  //string solFile = "D:/tmp/demo_solutions.tsv";
+  //string cfgFile = "D:/tmp/demo_config.tsv";
+  //string outPath = "D:/tmp/demo_config.tsv";
+  string solFile = "D:/tmp/synth/vanillin_MetaCyc_r_9_50_sol.tsv";
+  string cfgFile = "D:/tmp/synth/vanillin_MetaCyc_r_9_50_cfg.tsv";
+  string outPath = "D:/tmp/test_net2.tsv";
   //string solFile = "D:/tmp/synth/b.tsv";
   //string cfgFile = "D:/tmp/synth/a.tsv";
   glp_term_out(GLP_OFF);
@@ -1066,8 +1083,8 @@ int main(int argc, char** argv)
     std::replace(target.begin(), target.end(), ':', '_');
     std::replace(target.begin(), target.end(), '-', '_');
     map<map<long, double>, set<long>> netMap = aa.batch(t.first, t.second, solutions);
-    string path = "/nnet_" + target + ".tsv";
-    io::WriteNetMap(netMap, path);
+    //string path = "/nnet_" + target + ".tsv";
+    io::WriteNetMap(netMap, outPath);
     /*
     for (auto e : netMap)
     {
