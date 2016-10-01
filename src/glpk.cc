@@ -27,6 +27,19 @@
 
 using namespace std;
 
+string guessOriginal(string rxnEntry)
+{
+  vector<string> s = io::split(rxnEntry, '_');
+  if (s.size() >= 3) {
+    string fold1 = s[s.size() - 2];
+    string fold2 = s[s.size() - 1];
+    string rxnEntryOriginal = rxnEntry.substr(0, rxnEntry.size() - fold1.size() - fold2.size() - 2);
+    //std::cout << "reaction " << rxnEntry << " maybe fold?" << rxnEntryOriginal << " folded -> " << fold1 << " ### " << fold2 << endl;
+    return rxnEntryOriginal;
+  }
+  return rxnEntry;
+}
+
 //missing: obj coef
 //bounds
 glp_prob* foo(int r, int c, double** m,
@@ -764,69 +777,91 @@ public:
 
         
         for (auto rxnEntry : s) {
+          
           string rxnAlias = rxnOriginal_to_alias[rxnEntry];
+
+          if (rxnAlias.size() == 0)
+          {
+            rxnAlias = rxnOriginal_to_alias[guessOriginal(rxnEntry)];
+          }
+          //std::cout << " S:" << rxnEntry << " A:" << rxnAlias << std::endl;
           string rxnAliasR = rxnOriginal_to_rev[rxnAlias];
+
+          
+
           lp->set_obj_coef(lp->get_col_index(rxnAlias), 1.0);
           lp->set_obj_coef(lp->get_col_index(rxnAliasR), 1.0);
           lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnAlias), Op::GE, 1000);
           lp->set_col_bound(0, Op::GE, lp->get_col_index(rxnAliasR), Op::GE, 1000);
-          //std::cout << " " << rxnEntry;
+          
         }
         //std::cout << std::endl;
         sol.insert(s);
         //lp->write_lp("D:/tmp/lp_par_temp.txt");
         //std::cout << "solve ..." << std::endl;
-        double obj = lp->solve();
-        map<long, double> net;
-        //std::cout << "Objective: " << obj << std::endl;
-        for (int i = 0; i < lp->get_cols(); i++)
-        {
-          double v = lp->get_col_prim(i);
-          if (isEqual(v, 0.0))
-          //if (v != 0.0)
-          {
-            string rxn_maybe_rev = rxn_names[i];
-            string alias = rxn_maybe_rev;
-            string rxnEntry = "";
-            bool lr = true;
-            if (rxn_rev_alias.find(rxn_maybe_rev) != rxn_rev_alias.end())
-            {
-              alias = rxn_rev_alias[rxn_maybe_rev];
-              lr = false;
-            }
-            if (rxn_alias_orig.find(alias) != rxn_alias_orig.end())
-            {
-              rxnEntry = rxn_alias_orig[alias];
-            }
-            else
-            {
-              net[drainIndexToCpd[i]] = v;
-            }
-            
+        double obj = lp->solve_exact();
+        //double obj = lp->solve();
+        int status = glp_get_status(lp->get_lp());
+        if (status == GLP_FEAS || status == GLP_OPT) {
+          map<long, double> net;
 
-            if (rxnEntry.size() > 0)
+          //std::cout << "Objective: " << obj << std::endl;
+          for (int i = 0; i < lp->get_cols(); i++)
+          {
+            double v = lp->get_col_prim(i);
+            //if (isEqual(v, 0.0))
+            if (v != 0.0)
             {
-              //std::cout << "[" << rxnEntry << "]" << rxn_names[i] << std::endl;
-              if (lr)
+              string rxn_maybe_rev = rxn_names[i];
+              //std::cout << rxn_maybe_rev << ": " << v << std::endl;
+              string alias = rxn_maybe_rev;
+              string rxnEntry = "";
+              bool lr = true;
+              if (rxn_rev_alias.find(rxn_maybe_rev) != rxn_rev_alias.end())
               {
-                revmap[-1].insert(rxnEntry);
+                alias = rxn_rev_alias[rxn_maybe_rev];
+                lr = false;
+              }
+              if (rxn_alias_orig.find(alias) != rxn_alias_orig.end())
+              {
+                rxnEntry = rxn_alias_orig[alias];
               }
               else
               {
-                revmap[1].insert(rxnEntry);
+                net[drainIndexToCpd[i]] = v;
               }
-              //std::cout << rxnEntry << " >> " << rxn_names[i] << ": " << v << std::endl;
+
+
+              if (rxnEntry.size() > 0)
+              {
+                std::cout << "[" << rxnEntry << "]" << rxn_names[i] << std::endl;
+                if (lr)
+                {
+                  revmap[-1].insert(rxnEntry);
+                }
+                else
+                {
+                  revmap[1].insert(rxnEntry);
+                }
+                //std::cout << rxnEntry << " >> " << rxn_names[i] << ": " << v << std::endl;
+              }
+              //else is drain !?
+
             }
-            //else is drain !?
-            
           }
+
+          if (netMap.find(net) == netMap.end())
+          {
+            netMap.insert({ net, set<long>() });
+          }
+          netMap[net].insert(e);
+        }
+        else
+        {
+          std::cout << "WARN: not feasible lp status: " << status << std::endl;
         }
 
-        if (netMap.find(net) == netMap.end())
-        {
-          netMap.insert({ net, set<long>() });
-        }
-        netMap[net].insert(e);
+
         
         for (auto rxnEntry : s) {
           string rxnAlias = rxnOriginal_to_alias[rxnEntry];
@@ -963,8 +998,10 @@ int main(int argc, char** argv)
   //string solFile = "D:/tmp/demo_solutions.tsv";
   //string cfgFile = "D:/tmp/demo_config.tsv";
   //string outPath = "D:/tmp/demo_config.tsv";
-  string solFile = "D:/tmp/synth/vanillin_MetaCyc_r_9_50_sol.tsv";
-  string cfgFile = "D:/tmp/synth/vanillin_MetaCyc_r_9_50_cfg.tsv";
+  string solFile = "D:/tmp/synth/lycopene_MetaCyc_r_9_50_sol.tsv";
+  string cfgFile = "D:/tmp/synth/lycopene_MetaCyc_r_9_50_cfg.tsv";
+  //string solFile = "D:/tmp/synth/vanillin_MetaCyc_r_9_50_sol.tsv";
+  //string cfgFile = "D:/tmp/synth/vanillin_MetaCyc_r_9_50_cfg.tsv";
   string outPath = "D:/tmp/test_net2.tsv";
   //string solFile = "D:/tmp/synth/b.tsv";
   //string cfgFile = "D:/tmp/synth/a.tsv";

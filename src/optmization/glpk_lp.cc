@@ -188,6 +188,16 @@ double GlpkLp::solve()
   return z;
 }
 
+double GlpkLp::solve_exact()
+{
+  glp_smcp param;
+  glp_init_smcp(&param);
+  //param.tol_bnd = 1e-7; 
+  glp_exact(this->lp, &param);
+  double z = glp_get_obj_val(this->lp);
+  return z;
+}
+
 double GlpkLp::get_col_prim(int var)
 {
   return glp_get_col_prim(this->lp, var + 1);

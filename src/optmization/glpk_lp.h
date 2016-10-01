@@ -44,6 +44,7 @@ class GlpkLp
     void load_matrix();
     //set obj dir
     double solve();
+    double solve_exact();
     double get_col_prim(int var);
     //io
     int write_lp(string path);
